@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ứng dụng Nhắc Hẹn - Eisenhower Matrix</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#eff6ff',
+              500: '#3b82f6',
+              600: '#2563eb',
+              700: '#1d4ed8'
+            }
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="bg-slate-100 dark:bg-slate-900 text-slate-800 dark:text-slate-100 min-h-screen font-sans transition-colors duration-200">
+  <div class="max-w-md mx-auto min-h-screen flex flex-col bg-white dark:bg-slate-800 shadow-xl">
+    
+    <!-- Header -->
+    <header class="p-4 bg-brand-600 text-white flex justify-between items-center sticky top-0 z-10 shadow-md">
+      <div>
+        <h1 class="text-xl font-bold flex items-center gap-2">
+          <i class="fa-solid fa-bell"></i> Sổ Nhắc Hẹn
+        </h1>
+        <p class="text-xs text-blue-100">Quản lý theo Ma trận Eisenhower</p>
+      </div>
+      <button id="toggle-dark" class="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center hover:bg-white/30 transition">
+        <i class="fa-solid fa-moon dark:hidden"></i>
+        <i class="fa-solid fa-sun hidden dark:inline"></i>
+      </button>
+    </header>
+
+    <!-- Navigation Tabs (Danh sách chính / Lưu trữ / Thùng rác) -->
+    <div class="flex border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40 text-xs font-semibold">
+      <button id="tab-main" class="flex-1 py-3 text-center text-brand-600 border-b-2 border-brand-600 flex items-center justify-center gap-1.5 transition">
+        <i class="fa-solid fa-list-check"></i> Hiện tại
+      </button>
+      <button id="tab-archive" class="flex-1 py-3 text-center text-slate-500 hover:text-slate-700 dark:text-slate-400 flex items-center justify-center gap-1.5 transition">
+        <i class="fa-solid fa-box-archive"></i> Lưu trữ <span id="archive-count" class="bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-[10px] px-1.5 py-0.2 rounded-full">0</span>
+      </button>
+      <button id="tab-trash" class="flex-1 py-3 text-center text-slate-500 hover:text-slate-700 dark:text-slate-400 flex items-center justify-center gap-1.5 transition">
+        <i class="fa-solid fa-trash-can"></i> Thùng rác <span id="trash-count" class="bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-[10px] px-1.5 py-0.2 rounded-full">0</span>
+      </button>
+    </div>
+
+    <!-- Main Content -->
+    <main class="flex-1 p-4 overflow-y-auto">
+      
+      <!-- Button Thêm mới (Chỉ xuất hiện ở tab Hiện tại) -->
+      <div id="action-header">
+        <button id="btn-open-modal" class="w-full bg-brand-600 hover:bg-brand-700 text-white font-medium py-3 px-4 rounded-xl shadow-md flex items-center justify-center gap-2 transition transform active:scale-95 mb-4">
+          <i class="fa-solid fa-plus"></i> Thêm nhắc hẹn mới
+        </button>
+      </div>
+
+      <!-- Thanh Tìm Kiếm & Lọc -->
+      <div class="space-y-3 mb-4">
+        <div class="relative">
+          <i class="fa-solid fa-magnifying-glass absolute left-3 top-3.5 text-slate-400"></i>
+          <input type="text" id="search-input" placeholder="Tìm kiếm ghi chú, tiêu đề..." class="w-full pl-9 pr-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-500 text-sm">
+        </div>
+        
+        <!-- Filter Tabs Trạng thái (Chỉ dành cho Tab Hiện tại) -->
+        <div id="status-filter-container" class="flex gap-2 overflow-x-auto pb-1 text-xs">
+          <button class="filter-btn active-tab px-3 py-1.5 rounded-lg bg-brand-600 text-white whitespace-nowrap" data-filter="all">Tất cả</button>
+          <button class="filter-btn px-3 py-1.5 rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 whitespace-nowrap" data-filter="today">Hôm nay</button>
+          <button class="filter-btn px-3 py-1.5 rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 whitespace-nowrap" data-filter="pending">Chưa làm</button>
+          <button class="filter-btn px-3 py-1.5 rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 whitespace-nowrap" data-filter="completed">Đã hoàn thành</button>
+        </div>
+
+        <!-- Filter Trọng yếu (Eisenhower) -->
+        <div class="flex gap-1.5 overflow-x-auto pb-1 text-xs">
+          <button class="matrix-filter-btn px-2.5 py-1 rounded-md bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 whitespace-nowrap font-medium border border-slate-300 dark:border-slate-600 active-matrix" data-matrix="all">Tất cả nhãn</button>
+          <button class="matrix-filter-btn px-2.5 py-1 rounded-md bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 whitespace-nowrap font-medium" data-matrix="do">🔥 Làm ngay</button>
+          <button class="matrix-filter-btn px-2.5 py-1 rounded-md bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 whitespace-nowrap font-medium" data-matrix="schedule">📅 Lên lịch</button>
+          <button class="matrix-filter-btn px-2.5 py-1 rounded-md bg-teal-100 text-teal-800 dark:bg-teal-950 dark:text-teal-300 whitespace-nowrap font-medium" data-matrix="delegate">👥 Uỷ quyền</button>
+          <button class="matrix-filter-btn px-2.5 py-1 rounded-md bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300 whitespace-nowrap font-medium" data-matrix="eliminate">🗑️ Loại bỏ</button>
+        </div>
+      </div>
+
+      <!-- Tiêu đề / Nút thao tác riêng cho Thùng rác -->
+      <div id="trash-actions" class="hidden justify-between items-center mb-3 pb-2 border-b border-slate-200 dark:border-slate-700">
+        <span class="text-xs text-slate-500">Mục trong thùng rác sẽ được lưu giữ tại đây</span>
+        <button onclick="emptyTrash()" class="text-xs text-red-600 hover:text-red-700 font-semibold flex items-center gap-1">
+          <i class="fa-solid fa-broom"></i> Dọn sạch thùng rác
+        </button>
+      </div>
+
+      <!-- Danh sách nhắc hẹn -->
+      <div id="reminder-list" class="space-y-3">
+        <!-- Javascript sẽ đổ dữ liệu vào đây -->
+      </div>
+    </main>
+
+    <!-- Modal Thêm/Sửa Nhắc Hẹn -->
+    <div id="modal" class="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 hidden">
+      <div class="bg-white dark:bg-slate-800 w-full max-w-md rounded-t-2xl sm:rounded-2xl p-5 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+        <div class="flex justify-between items-center border-b border-slate-200 dark:border-slate-700 pb-3">
+          <h2 id="modal-title" class="text-lg font-bold">Thêm Nhắc Hẹn Mới</h2>
+          <button id="btn-close-modal" class="text-slate-400 hover:text-slate-600 text-xl">&times;</button>
+        </div>
+
+        <form id="reminder-form" class="space-y-4">
+          <input type="hidden" id="reminder-id">
+          
+          <!-- Tiêu đề -->
+          <div>
+            <label class="block text-xs font-semibold mb-1 text-slate-600 dark:text-slate-400">Tên nhắc hẹn *</label>
+            <input type="text" id="title-input" required placeholder="Nhập tiêu đề công việc..." class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm focus:ring-2 focus:ring-brand-500 outline-none">
+          </div>
+
+          <!-- Nhãn Eisenhower -->
+          <div>
+            <label class="block text-xs font-semibold mb-1 text-slate-600 dark:text-slate-400">Phân loại (Ma trận Eisenhower) *</label>
+            <select id="matrix-input" required class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm focus:ring-2 focus:ring-brand-500 outline-none">
+              <option value="do">🔥 LÀM NGAY (Khẩn cấp & Quan trọng)</option>
+              <option value="schedule" selected>📅 LÊN LỊCH (Không khẩn cấp & Quan trọng)</option>
+              <option value="delegate">👥 UỶ QUYỀN (Khẩn cấp & Không quan trọng)</option>
+              <option value="eliminate">🗑️ LOẠI BỎ (Không khẩn cấp & Không quan trọng)</option>
+            </select>
+          </div>
+
+          <!-- Ngày & Giờ -->
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-semibold mb-1 text-slate-600 dark:text-slate-400">Ngày *</label>
+              <input type="date" id="date-input" required class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm focus:ring-2 focus:ring-brand-500 outline-none">
+            </div>
+            <div>
+              <label class="block text-xs font-semibold mb-1 text-slate-600 dark:text-slate-400">Giờ *</label>
+              <input type="time" id="time-input" required class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm focus:ring-2 focus:ring-brand-500 outline-none">
+            </div>
+          </div>
+
+          <!-- Ghi chú -->
+          <div>
+            <label class="block text-xs font-semibold mb-1 text-slate-600 dark:text-slate-400">Ghi chú chi tiết</label>
+            <textarea id="note-input" rows="3" placeholder="Nhập ghi chú hoặc yêu cầu bổ sung..." class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm focus:ring-2 focus:ring-brand-500 outline-none"></textarea>
+          </div>
+
+          <!-- Lặp lại -->
+          <div>
+            <label class="block text-xs font-semibold mb-1 text-slate-600 dark:text-slate-400">Lặp lại</label>
+            <select id="repeat-input" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm focus:ring-2 focus:ring-brand-500 outline-none">
+              <option value="none">Không lặp lại</option>
+              <option value="daily">Hàng ngày</option>
+              <option value="weekly">Hàng tuần</option>
+              <option value="monthly">Hàng tháng</option>
+            </select>
+          </div>
+
+          <!-- Nút hành động -->
+          <div class="flex justify-end gap-2 pt-2">
+            <button type="button" id="btn-cancel" class="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 text-sm font-medium hover:bg-slate-100 dark:hover:bg-slate-700">Hủy</button>
+            <button type="submit" class="px-4 py-2 rounded-lg bg-brand-600 text-white text-sm font-medium hover:bg-brand-700">Lưu lại</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    // State Management
+    let reminders = JSON.parse(localStorage.getItem('eisenhower_reminders')) || [];
+    let currentView = 'main'; // 'main', 'archive', 'trash'
+    let currentStatusFilter = 'all';
+    let currentMatrixFilter = 'all';
+    let searchQuery = '';
+
+    // DOM Elements
+    const reminderList = document.getElementById('reminder-list');
+    const modal = document.getElementById('modal');
+    const modalTitle = document.getElementById('modal-title');
+    const reminderForm = document.getElementById('reminder-form');
+    const searchInput = document.getElementById('search-input');
+    const actionHeader = document.getElementById('action-header');
+    const statusFilterContainer = document.getElementById('status-filter-container');
+    const trashActions = document.getElementById('trash-actions');
+    
+    // Matrix badges metadata
+    const matrixConfig = {
+      do: { label: 'LÀM NGAY', color: 'bg-emerald-500 text-white border-emerald-600' },
+      schedule: { label: 'LÊN LỊCH', color: 'bg-amber-400 text-slate-900 border-amber-500 font-bold' },
+      delegate: { label: 'UỶ QUYỀN', color: 'bg-teal-600 text-white border-teal-700' },
+      eliminate: { label: 'LOẠI BỎ', color: 'bg-red-600 text-white border-red-700' }
+    };
+
+    // Dark Mode Toggle
+    document.getElementById('toggle-dark').addEventListener('click', () => {
+      document.documentElement.classList.toggle('dark');
+    });
+
+    // View Navigation Tabs (Chuyển giữa Hiện tại, Lưu trữ, Thùng rác)
+    const setView = (view) => {
+      currentView = view;
+      const tabMain = document.getElementById('tab-main');
+      const tabArchive = document.getElementById('tab-archive');
+      const tabTrash = document.getElementById('tab-trash');
+
+      [tabMain, tabArchive, tabTrash].forEach(tab => {
+        tab.className = "flex-1 py-3 text-center text-slate-500 hover:text-slate-700 dark:text-slate-400 flex items-center justify-center gap-1.5 transition";
+      });
+
+      if (view === 'main') {
+        tabMain.className = "flex-1 py-3 text-center text-brand-600 border-b-2 border-brand-600 flex items-center justify-center gap-1.5 font-bold transition";
+        actionHeader.classList.remove('hidden');
+        statusFilterContainer.classList.remove('hidden');
+        trashActions.classList.add('hidden');
+        trashActions.classList.remove('flex');
+      } else if (view === 'archive') {
+        tabArchive.className = "flex-1 py-3 text-center text-brand-600 border-b-2 border-brand-600 flex items-center justify-center gap-1.5 font-bold transition";
+        actionHeader.classList.add('hidden');
+        statusFilterContainer.classList.add('hidden');
+        trashActions.classList.add('hidden');
+        trashActions.classList.remove('flex');
+      } else if (view === 'trash') {
+        tabTrash.className = "flex-1 py-3 text-center text-brand-600 border-b-2 border-brand-600 flex items-center justify-center gap-1.5 font-bold transition";
+        actionHeader.classList.add('hidden');
+        statusFilterContainer.classList.add('hidden');
+        trashActions.classList.remove('hidden');
+        trashActions.classList.add('flex');
+      }
+
+      renderReminders();
+    };
+
+    document.getElementById('tab-main').addEventListener('click', () => setView('main'));
+    document.getElementById('tab-archive').addEventListener('click', () => setView('archive'));
+    document.getElementById('tab-trash').addEventListener('click', () => setView('trash'));
+
+    // Modal Control
+    const openModal = (isEdit = false, data = null) => {
+      modal.classList.remove('hidden');
+      if (isEdit && data) {
+        modalTitle.innerText = "Chỉnh Sửa Nhắc Hẹn";
+        document.getElementById('reminder-id').value = data.id;
+        document.getElementById('title-input').value = data.title;
+        document.getElementById('matrix-input').value = data.matrix || 'schedule';
+        document.getElementById('date-input').value = data.date;
+        document.getElementById('time-input').value = data.time;
+        document.getElementById('note-input').value = data.note || '';
+        document.getElementById('repeat-input').value = data.repeat || 'none';
+      } else {
+        modalTitle.innerText = "Thêm Nhắc Hẹn Mới";
+        reminderForm.reset();
+        document.getElementById('reminder-id').value = '';
+        document.getElementById('date-input').value = new Date().toISOString().split('T')[0];
+      }
+    };
+
+    const closeModal = () => modal.classList.add('hidden');
+
+    document.getElementById('btn-open-modal').addEventListener('click', () => openModal());
+    document.getElementById('btn-close-modal').addEventListener('click', closeModal);
+    document.getElementById('btn-cancel').addEventListener('click', closeModal);
+
+    // Save/Update Reminder
+    reminderForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const id = document.getElementById('reminder-id').value;
+      const title = document.getElementById('title-input').value;
+      const matrix = document.getElementById('matrix-input').value;
+      const date = document.getElementById('date-input').value;
+      const time = document.getElementById('time-input').value;
+      const note = document.getElementById('note-input').value;
+      const repeat = document.getElementById('repeat-input').value;
+
+      if (id) {
+        reminders = reminders.map(item => item.id === id ? { ...item, title, matrix, date, time, note, repeat } : item);
+      } else {
+        reminders.push({
+          id: Date.now().toString(),
+          title,
+          matrix,
+          date,
+          time,
+          note,
+          repeat,
+          completed: false,
+          archived: false,
+          trashed: false
+        });
+      }
+
+      saveAndRender();
+      closeModal();
+    });
+
+    // Actions: Toggle Complete, Archive, Trash, Restore, Delete Permanently
+    window.toggleComplete = (id) => {
+      reminders = reminders.map(item => item.id === id ? { ...item, completed: !item.completed } : item);
+      saveAndRender();
+    };
+
+    window.toggleArchive = (id) => {
+      reminders = reminders.map(item => item.id === id ? { ...item, archived: !item.archived } : item);
+      saveAndRender();
+    };
+
+    window.moveToTrash = (id) => {
+      reminders = reminders.map(item => item.id === id ? { ...item, trashed: true } : item);
+      saveAndRender();
+    };
+
+    window.restoreFromTrash = (id) => {
+      reminders = reminders.map(item => item.id === id ? { ...item, trashed: false } : item);
+      saveAndRender();
+    };
+
+    window.deletePermanently = (id) => {
+      if (confirm("Bạn có chắc chắn muốn xóa VĨNH VIỄN nhắc hẹn này không? Không thể khôi phục sau khi xóa.")) {
+        reminders = reminders.filter(item => item.id !== id);
+        saveAndRender();
+      }
+    };
+
+    window.emptyTrash = () => {
+      if (confirm("Bạn có chắc chắn muốn xóa toàn bộ các mục trong Thùng rác vĩnh viễn?")) {
+        reminders = reminders.filter(item => !item.trashed);
+        saveAndRender();
+      }
+    };
+
+    window.editReminder = (id) => {
+      const item = reminders.find(r => r.id === id);
+      if (item) openModal(true, item);
+    };
+
+    // Filter Listeners
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        document.querySelectorAll('.filter-btn').forEach(b => {
+          b.classList.remove('bg-brand-600', 'text-white');
+          b.classList.add('bg-slate-200', 'dark:bg-slate-700', 'text-slate-700', 'dark:text-slate-300');
+        });
+        e.target.classList.remove('bg-slate-200', 'dark:bg-slate-700', 'text-slate-700', 'dark:text-slate-300');
+        e.target.classList.add('bg-brand-600', 'text-white');
+        currentStatusFilter = e.target.dataset.filter;
+        renderReminders();
+      });
+    });
+
+    document.querySelectorAll('.matrix-filter-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        document.querySelectorAll('.matrix-filter-btn').forEach(b => b.classList.remove('ring-2', 'ring-brand-500'));
+        e.target.classList.add('ring-2', 'ring-brand-500');
+        currentMatrixFilter = e.target.dataset.matrix;
+        renderReminders();
+      });
+    });
+
+    searchInput.addEventListener('input', (e) => {
+      searchQuery = e.target.value.toLowerCase();
+      renderReminders();
+    });
+
+    // Save & Render
+    const saveAndRender = () => {
+      localStorage.setItem('eisenhower_reminders', JSON.stringify(reminders));
+      updateCounts();
+      renderReminders();
+    };
+
+    const updateCounts = () => {
+      const archiveCount = reminders.filter(r => r.archived && !r.trashed).length;
+      const trashCount = reminders.filter(r => r.trashed).length;
+      document.getElementById('archive-count').innerText = archiveCount;
+      document.getElementById('trash-count').innerText = trashCount;
+    };
+
+    const renderReminders = () => {
+      const todayStr = new Date().toISOString().split('T')[0];
+
+      const filtered = reminders.filter(item => {
+        // Lọc theo Chế độ Xem (Main, Archive, Trash)
+        if (currentView === 'main') {
+          if (item.trashed || item.archived) return false;
+          if (currentStatusFilter === 'today' && item.date !== todayStr) return false;
+          if (currentStatusFilter === 'pending' && item.completed) return false;
+          if (currentStatusFilter === 'completed' && !item.completed) return false;
+        } else if (currentView === 'archive') {
+          if (!item.archived || item.trashed) return false;
+        } else if (currentView === 'trash') {
+          if (!item.trashed) return false;
+        }
+
+        // Lọc theo nhãn Eisenhower
+        if (currentMatrixFilter !== 'all' && item.matrix !== currentMatrixFilter) return false;
+
+        // Lọc theo từ khóa tìm kiếm
+        if (searchQuery && !item.title.toLowerCase().includes(searchQuery) && !item.note.toLowerCase().includes(searchQuery)) {
+          return false;
+        }
+
+        return true;
+      });
+
+      if (filtered.length === 0) {
+        let emptyText = "Không tìm thấy nhắc hẹn nào";
+        if (currentView === 'archive') emptyText = "Chưa có nhắc hẹn nào được lưu trữ";
+        if (currentView === 'trash') emptyText = "Thùng rác trống";
+
+        reminderList.innerHTML = `
+          <div class="text-center py-10 text-slate-400">
+            <i class="fa-regular fa-folder-open text-4xl mb-2"></i>
+            <p class="text-sm">${emptyText}</p>
+          </div>
+        `;
+        return;
+      }
+
+      reminderList.innerHTML = filtered.map(item => {
+        const matrix = matrixConfig[item.matrix || 'schedule'];
+        
+        // Render nút chức năng theo từng Tab
+        let actionButtons = '';
+        if (currentView === 'main') {
+          actionButtons = `
+            <button onclick="toggleArchive('${item.id}')" class="hover:text-brand-600 flex items-center gap-1" title="Lưu trữ"><i class="fa-solid fa-box-archive"></i> Lưu trữ</button>
+            <button onclick="editReminder('${item.id}')" class="hover:text-brand-600 flex items-center gap-1"><i class="fa-regular fa-pen-to-square"></i> Sửa</button>
+            <button onclick="moveToTrash('${item.id}')" class="hover:text-red-600 flex items-center gap-1"><i class="fa-regular fa-trash-can"></i> Xóa</button>
+          `;
+        } else if (currentView === 'archive') {
+          actionButtons = `
+            <button onclick="toggleArchive('${item.id}')" class="hover:text-brand-600 flex items-center gap-1 text-brand-600" title="Bỏ lưu trữ"><i class="fa-solid fa-arrow-up-from-bracket"></i> Bỏ lưu trữ</button>
+            <button onclick="moveToTrash('${item.id}')" class="hover:text-red-600 flex items-center gap-1"><i class="fa-regular fa-trash-can"></i> Xóa</button>
+          `;
+        } else if (currentView === 'trash') {
+          actionButtons = `
+            <button onclick="restoreFromTrash('${item.id}')" class="hover:text-emerald-600 text-emerald-600 flex items-center gap-1"><i class="fa-solid fa-rotate-left"></i> Khôi phục</button>
+            <button onclick="deletePermanently('${item.id}')" class="hover:text-red-600 text-red-600 flex items-center gap-1 font-semibold"><i class="fa-solid fa-xmark"></i> Xóa vĩnh viễn</button>
+          `;
+        }
+
+        return `
+          <div class="p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 flex flex-col gap-2 transition hover:shadow-sm">
+            <div class="flex items-start justify-between gap-2">
+              <div class="flex items-start gap-3">
+                ${currentView !== 'trash' ? `<input type="checkbox" ${item.completed ? 'checked' : ''} onchange="toggleComplete('${item.id}')" class="mt-1 w-4 h-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500">` : ''}
+                <div>
+                  <h3 class="text-sm font-semibold ${item.completed ? 'line-through text-slate-400 dark:text-slate-500' : ''}">${item.title}</h3>
+                  <div class="flex items-center gap-2 mt-1 text-xs text-slate-500 dark:text-slate-400">
+                    <span><i class="fa-regular fa-clock"></i> ${item.time} (${item.date})</span>
+                    ${item.repeat && item.repeat !== 'none' ? `<span class="bg-slate-200 dark:bg-slate-700 px-1.5 py-0.5 rounded text-[10px]"><i class="fa-solid fa-rotate"></i> ${item.repeat}</span>` : ''}
+                  </div>
+                </div>
+              </div>
+              <span class="text-[10px] font-bold px-2 py-0.5 rounded border ${matrix.color}">${matrix.label}</span>
+            </div>
+            
+            ${item.note ? `<p class="text-xs text-slate-600 dark:text-slate-400 bg-white dark:bg-slate-800 p-2 rounded-lg border border-slate-100 dark:border-slate-700/50">${item.note}</p>` : ''}
+            
+            <div class="flex justify-end items-center gap-3 pt-1 text-xs text-slate-400 border-t border-slate-200/50 dark:border-slate-800">
+              ${actionButtons}
+            </div>
+          </div>
+        `;
+      }).join('');
+    };
+
+    // Khởi tạo ban đầu
+    updateCounts();
+    renderReminders();
+  </script>
+</body>
+</html>
