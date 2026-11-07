@@ -35,10 +35,15 @@
         </h1>
         <p class="text-xs text-blue-100">Quản lý theo Ma trận Eisenhower</p>
       </div>
-      <button id="toggle-dark" class="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center hover:bg-white/30 transition">
-        <i class="fa-solid fa-moon dark:hidden"></i>
-        <i class="fa-solid fa-sun hidden dark:inline"></i>
-      </button>
+      <div class="flex items-center gap-2">
+        <button id="btn-request-notif" title="Bật thông báo hệ thống" class="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center hover:bg-white/30 transition">
+          <i class="fa-solid fa-bell-ring"></i>
+        </button>
+        <button id="toggle-dark" class="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center hover:bg-white/30 transition">
+          <i class="fa-solid fa-moon dark:hidden"></i>
+          <i class="fa-solid fa-sun hidden dark:inline"></i>
+        </button>
+      </div>
     </header>
 
     <!-- Navigation Tabs (Danh sách chính / Lưu trữ / Thùng rác) -->
@@ -202,7 +207,46 @@
       document.documentElement.classList.toggle('dark');
     });
 
-    // View Navigation Tabs (Chuyển giữa Hiện tại, Lưu trữ, Thùng rác)
+    // Request Notification Permission
+    document.getElementById('btn-request-notif').addEventListener('click', () => {
+      if ('Notification' in window) {
+        Notification.requestPermission().then(permission => {
+          if (permission === 'granted') {
+            alert('Đã bật quyền thông báo thành công!');
+          } else {
+            alert('Quyền thông báo chưa được cấp.');
+          }
+        });
+      } else {
+        alert('Trình duyệt của bạn không hỗ trợ Web Notification.');
+      }
+    });
+
+    // Phát âm thanh báo thức bằng Web Audio API
+    const playAlarmSound = () => {
+      try {
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(880, audioCtx.currentTime); // Tần số nốt A5
+
+        // Tạo nhịp kêu tít tít
+        gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + 1.5);
+
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        osc.start();
+        osc.stop(audioCtx.currentTime + 1.5);
+      } catch (e) {
+        console.log('Audio Context Error:', e);
+      }
+    };
+
+    // View Navigation Tabs
     const setView = (view) => {
       currentView = view;
       const tabMain = document.getElementById('tab-main');
@@ -278,7 +322,7 @@
       const repeat = document.getElementById('repeat-input').value;
 
       if (id) {
-        reminders = reminders.map(item => item.id === id ? { ...item, title, matrix, date, time, note, repeat } : item);
+        reminders = reminders.map(item => item.id === id ? { ...item, title, matrix, date, time, note, repeat, notified: false } : item);
       } else {
         reminders.push({
           id: Date.now().toString(),
@@ -290,7 +334,8 @@
           repeat,
           completed: false,
           archived: false,
-          trashed: false
+          trashed: false,
+          notified: false
         });
       }
 
@@ -298,7 +343,7 @@
       closeModal();
     });
 
-    // Actions: Toggle Complete, Archive, Trash, Restore, Delete Permanently
+    // Actions
     window.toggleComplete = (id) => {
       reminders = reminders.map(item => item.id === id ? { ...item, completed: !item.completed } : item);
       saveAndRender();
@@ -384,7 +429,6 @@
       const todayStr = new Date().toISOString().split('T')[0];
 
       const filtered = reminders.filter(item => {
-        // Lọc theo Chế độ Xem (Main, Archive, Trash)
         if (currentView === 'main') {
           if (item.trashed || item.archived) return false;
           if (currentStatusFilter === 'today' && item.date !== todayStr) return false;
@@ -396,10 +440,8 @@
           if (!item.trashed) return false;
         }
 
-        // Lọc theo nhãn Eisenhower
         if (currentMatrixFilter !== 'all' && item.matrix !== currentMatrixFilter) return false;
 
-        // Lọc theo từ khóa tìm kiếm
         if (searchQuery && !item.title.toLowerCase().includes(searchQuery) && !item.note.toLowerCase().includes(searchQuery)) {
           return false;
         }
@@ -424,7 +466,6 @@
       reminderList.innerHTML = filtered.map(item => {
         const matrix = matrixConfig[item.matrix || 'schedule'];
         
-        // Render nút chức năng theo từng Tab
         let actionButtons = '';
         if (currentView === 'main') {
           actionButtons = `
@@ -469,6 +510,52 @@
         `;
       }).join('');
     };
+
+    // ==========================================
+    // REAL-TIME TIMER CHECKER (Cơ chế kiểm tra thời gian thực)
+    // ==========================================
+    const checkAlarmsRealTime = () => {
+      const now = new Date();
+      const currentDate = now.toISOString().split('T')[0];
+      const hours = String(now.getHours()).padStart(2, '0');
+      const minutes = String(now.getMinutes()).padStart(2, '0');
+      const currentTime = `${hours}:${minutes}`;
+
+      let updated = false;
+
+      reminders.forEach(item => {
+        if (!item.completed && !item.trashed && !item.notified) {
+          if (item.date === currentDate && item.time === currentTime) {
+            // 1. Phát âm thanh
+            playAlarmSound();
+
+            // 2. Hiện thông báo đẩy (Notification)
+            if ('Notification' in window && Notification.permission === 'granted') {
+              new Notification(`⏰ Nhắc hẹn: ${item.title}`, {
+                body: item.note || `Đã đến giờ thực hiện công việc!`,
+                icon: 'https://cdn-icons-png.flaticon.com/512/3602/3602145.png'
+              });
+            }
+
+            // 3. Hiển thị hộp thoại Cảnh báo trên màn hình
+            setTimeout(() => {
+              alert(`⏰ BÁO THỨC: ${item.title}\n\n${item.note ? 'Ghi chú: ' + item.note : ''}`);
+            }, 100);
+
+            // Đánh dấu đã báo để tránh lặp lại liên tục trong cùng 1 phút
+            item.notified = true;
+            updated = true;
+          }
+        }
+      });
+
+      if (updated) {
+        saveAndRender();
+      }
+    };
+
+    // Chạy vòng lặp kiểm tra mỗi 10 giây
+    setInterval(checkAlarmsRealTime, 10000);
 
     // Khởi tạo ban đầu
     updateCounts();
